@@ -36,3 +36,8 @@ CREATE TABLE winners (
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (show_id) REFERENCES shows(show_id)
 );
+CREATE INDEX idx_user_email ON users(email);
+CREATE INDEX idx_entries_user_id ON entries(user_id);
+CREATE INDEX idx_entries_show_id ON entries(show_id);
+CREATE INDEX idx_winners_user_id ON winners(user_id);
+CREATE INDEX idx_winners_show_id ON winners(show_id);
