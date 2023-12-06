@@ -1,3 +1,6 @@
+"""
+Created by Bora Erinc, 5th of December 2023
+"""
 import logging
 import mysql.connector
 from mysql.connector import Error
@@ -7,8 +10,10 @@ from mailchimp_marketing.api_client import ApiClientError
 import sys
 import random
 
+#To log errors and info properly
 logging.basicConfig()
 
+#Function to notify users with a win/lose option
 def send_email(user_email, show_name, win):
     mailchimp_client = Mailchimp.Client()
     mailchimp_client.set_config({
@@ -30,6 +35,7 @@ def send_email(user_email, show_name, win):
         print("Error sending email: ", error.text)
         logging.error(f"Error sending email to {user_email}: {error.text}")
 
+#Connect to MySQL
 def create_database_connection():
     try:
         connection = mysql.connector.connect(
@@ -45,7 +51,7 @@ def create_database_connection():
         logging.error(f"Database error: {e}")
         return None
 
-
+#Script to run at 12, 1, and 2pm
 def draw_winners():
     logging.info("Starting the lottery draw")
     connection = create_database_connection()
@@ -55,7 +61,7 @@ def draw_winners():
         cursor = connection.cursor(dictionary=True)
         tomorrow_date = (datetime.now() + timedelta(days=1)).date()
 
-        # List of shows happening day after
+        #List of shows happening day after
         cursor.execute("SELECT show_id, show_name, available_tickets FROM shows WHERE DATE(time) = %s", (tomorrow_date,))
         shows = cursor.fetchall()
 
@@ -64,7 +70,7 @@ def draw_winners():
             show_name = show['show_name']
             available_tickets = show['available_tickets']
 
-            #Query to pick winners from each show (Can be inefficient with large datasets
+            #Query to pick winners from each show (Can be inefficient with large datasets):
             # winners_query = """
             #     SELECT user_id FROM lottery_entries
             #     WHERE show_id = %s
@@ -74,15 +80,17 @@ def draw_winners():
             # cursor.execute(winners_query, (show_id, available_tickets))
             # winners = cursor.fetchall()
 
-            # Fetch eligible entries
+            #Fetch entries to be drawn from
             cursor.execute("SELECT user_id FROM lottery_entries WHERE show_id = %s", (show_id,))
             entries = cursor.fetchall()
+            
             #More efficient randomization:
             if len(entries) > 0:
                 winners = random.sample(entries, min(len(entries), available_tickets))
 
                 for winner in winners:
                     user_id = winner['user_id']
+                    
                     #Query to enter the winners into the 'winners' table
                     cursor.execute("""
                                     INSERT INTO winners (show_id, user_id, ticket_redeemed) 
@@ -91,8 +99,10 @@ def draw_winners():
 
                     cursor.execute("SELECT email FROM users WHERE user_id = %s", (user_id))
                     user_email = cursor.fetchone()['email']
+                    
                     #Inform users
                     send_email(user_email, show_name, True)
+                    
                     # Clear from 'entries' when an entry wins
                     cursor.execute("""
                         DELETE FROM lottery_entries
@@ -110,6 +120,7 @@ def draw_winners():
             connection.close()
         logging.info("Lottery draw completed")
 
+#Script to run at 1, 2, and 3pm
 def manage_winners():
     logging.info("Starting lottery management")
     connection = create_database_connection()
@@ -120,7 +131,7 @@ def manage_winners():
         cursor = connection.cursor(dictionary=True)
         tomorrow_date = (datetime.now() + timedelta(days=1)).date()
 
-        # List of shows happening day after
+        #List of shows happening day after
         cursor.execute("SELECT show_id, show_name, available_tickets FROM shows WHERE DATE(time) = %s", (tomorrow_date,))
         shows = cursor.fetchall()
 
@@ -128,7 +139,7 @@ def manage_winners():
             show_id = show['show_id']
             show_name = show['show_name']
 
-            # Check ticket redemption
+            #Check if ticket has been redeemed
             cursor.execute("""
                 SELECT user_id FROM winners 
                 WHERE show_id = %s AND ticket_redeemed = FALSE
@@ -136,18 +147,19 @@ def manage_winners():
             unredeemed_winners = cursor.fetchall()
             unredeemed_count = len(unredeemed_winners)
 
+            #If not, user loses access to redeem it
             for winner in unredeemed_winners:
                 cursor.execute("SELECT email FROM users WHERE user_id = %s", (winner['user_id'],))
                 user_email = cursor.fetchone()['email']
                 send_email(user_email, show_name, False)
 
-            # Update number of available tickets
+            #Update number of available tickets
             cursor.execute("""
                     UPDATE shows SET available_tickets = available_tickets + %s 
                     WHERE show_id = %s
                 """, (unredeemed_count, show_id))
 
-            # Clear 'winners' table for this show
+            #Clear 'winners' table for this show
             cursor.execute("DELETE FROM winners WHERE show_id = %s", (show_id,))
             connection.commit()
         cursor.close()
@@ -160,6 +172,7 @@ def manage_winners():
             connection.close()
         logging.info("Lottery management completed")
 
+#Function to call at 1 and 2pm
 def manage_and_redraw_winners():
     manage_winners()
     draw_winners()
