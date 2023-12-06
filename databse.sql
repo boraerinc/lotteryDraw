@@ -1,3 +1,7 @@
+/*
+Created by Bora Erinc, 5th of December 2023 
+*/
+
 -- Users Table
 CREATE TABLE users (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -36,6 +40,8 @@ CREATE TABLE winners (
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (show_id) REFERENCES shows(show_id)
 );
+
+-- Indices for frequent queries
 CREATE INDEX idx_user_email ON users(email);
 CREATE INDEX idx_entries_user_id ON entries(user_id);
 CREATE INDEX idx_entries_show_id ON entries(show_id);
